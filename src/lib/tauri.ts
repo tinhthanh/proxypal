@@ -91,26 +91,38 @@ export interface AmpModelSlot {
 }
 
 // Default Amp model slots (these are the models Amp CLI uses)
+// Based on https://ampcode.com/models
 export const AMP_MODEL_SLOTS: AmpModelSlot[] = [
   {
     id: "smart",
     name: "Smart",
-    fromModel: "claude-sonnet-4-20250514",
-    fromLabel: "Claude Sonnet 4",
+    fromModel: "claude-opus-4-5-20250514",
+    fromLabel: "Claude Opus 4.5",
   },
   {
     id: "rush",
     name: "Rush",
-    fromModel: "claude-haiku-4-20250514",
-    fromLabel: "Claude Haiku 4",
+    fromModel: "claude-haiku-4-5-20250514",
+    fromLabel: "Claude Haiku 4.5",
   },
   {
     id: "oracle",
     name: "Oracle",
-    fromModel: "claude-opus-4-20250514",
-    fromLabel: "Claude Opus 4",
+    fromModel: "gpt-5.1",
+    fromLabel: "GPT-5.1",
   },
 ];
+
+// Common model aliases that Amp might use (without date suffix)
+// These map to the full model identifiers
+export const AMP_MODEL_ALIASES: Record<string, string> = {
+  "claude-opus-4.5": "claude-opus-4-5-20250514",
+  "claude-opus-4-5": "claude-opus-4-5-20250514",
+  "claude-haiku-4.5": "claude-haiku-4-5-20250514",
+  "claude-haiku-4-5": "claude-haiku-4-5-20250514",
+  "claude-sonnet-4.5": "claude-sonnet-4-5-20250514",
+  "claude-sonnet-4-5": "claude-sonnet-4-5-20250514",
+};
 
 // OpenAI-compatible model for Amp routing
 export interface AmpOpenAIModel {
