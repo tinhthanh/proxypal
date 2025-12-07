@@ -850,6 +850,17 @@ export async function setWebsocketAuth(value: boolean): Promise<void> {
   return invoke("set_websocket_auth", { value });
 }
 
+// Prioritize Model Mappings - model mappings take precedence over local API keys
+export async function getPrioritizeModelMappings(): Promise<boolean> {
+  return invoke("get_prioritize_model_mappings");
+}
+
+export async function setPrioritizeModelMappings(
+  value: boolean,
+): Promise<void> {
+  return invoke("set_prioritize_model_mappings", { value });
+}
+
 // OAuth Excluded Models - block specific models per OAuth provider
 export type OAuthExcludedModels = Record<string, string[]>;
 

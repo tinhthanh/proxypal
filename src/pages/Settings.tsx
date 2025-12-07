@@ -11,6 +11,8 @@ import {
   setMaxRetryInterval,
   getWebsocketAuth,
   setWebsocketAuth,
+  getPrioritizeModelMappings,
+  setPrioritizeModelMappings,
   getOAuthExcludedModels,
   setOAuthExcludedModels,
   deleteOAuthExcludedModels,
@@ -67,9 +69,13 @@ export function SettingsPage() {
   // Management API runtime settings
   const [maxRetryInterval, setMaxRetryIntervalState] = createSignal<number>(0);
   const [websocketAuth, setWebsocketAuthState] = createSignal<boolean>(false);
+  const [prioritizeModelMappings, setPrioritizeModelMappingsState] =
+    createSignal<boolean>(false);
   const [savingMaxRetryInterval, setSavingMaxRetryInterval] =
     createSignal(false);
   const [savingWebsocketAuth, setSavingWebsocketAuth] = createSignal(false);
+  const [savingPrioritizeModelMappings, setSavingPrioritizeModelMappings] =
+    createSignal(false);
 
   // OAuth Excluded Models state
   const [oauthExcludedModels, setOAuthExcludedModelsState] =
@@ -110,6 +116,13 @@ export function SettingsPage() {
         setWebsocketAuthState(wsAuth);
       } catch (error) {
         console.error("Failed to fetch WebSocket auth:", error);
+      }
+
+      try {
+        const prioritize = await getPrioritizeModelMappings();
+        setPrioritizeModelMappingsState(prioritize);
+      } catch (error) {
+        console.error("Failed to fetch prioritize model mappings:", error);
       }
 
       // Fetch OAuth excluded models
@@ -154,6 +167,28 @@ export function SettingsPage() {
       toastStore.error("Failed to update WebSocket auth", String(error));
     } finally {
       setSavingWebsocketAuth(false);
+    }
+  };
+
+  // Handler for prioritize model mappings toggle
+  const handlePrioritizeModelMappingsChange = async (value: boolean) => {
+    setSavingPrioritizeModelMappings(true);
+    try {
+      await setPrioritizeModelMappings(value);
+      setPrioritizeModelMappingsState(value);
+      toastStore.success(
+        `Model mapping priority ${value ? "enabled" : "disabled"}`,
+        value
+          ? "Model mappings now take precedence over local API keys"
+          : "Local API keys now take precedence over model mappings",
+      );
+    } catch (error) {
+      toastStore.error(
+        "Failed to update model mapping priority",
+        String(error),
+      );
+    } finally {
+      setSavingPrioritizeModelMappings(false);
     }
   };
 
@@ -874,6 +909,70 @@ export function SettingsPage() {
                     Route Amp model requests to different providers
                   </p>
                 </div>
+
+                {/* Prioritize Model Mappings Toggle */}
+                <Show when={appStore.proxyStatus().running}>
+                  <div class="flex items-center justify-between p-3 bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700">
+                    <div class="flex-1">
+                      <div class="flex items-center gap-2">
+                        <span class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                          Prioritize Model Mappings
+                        </span>
+                        <Show when={savingPrioritizeModelMappings()}>
+                          <svg
+                            class="w-4 h-4 animate-spin text-brand-500"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                          >
+                            <circle
+                              class="opacity-25"
+                              cx="12"
+                              cy="12"
+                              r="10"
+                              stroke="currentColor"
+                              stroke-width="4"
+                            />
+                            <path
+                              class="opacity-75"
+                              fill="currentColor"
+                              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                            />
+                          </svg>
+                        </Show>
+                      </div>
+                      <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                        Model mappings take precedence over local API keys.
+                        Enable to route mapped models via OAuth instead of local
+                        keys.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={prioritizeModelMappings()}
+                      disabled={savingPrioritizeModelMappings()}
+                      onClick={() =>
+                        handlePrioritizeModelMappingsChange(
+                          !prioritizeModelMappings(),
+                        )
+                      }
+                      class={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 disabled:opacity-50 ${
+                        prioritizeModelMappings()
+                          ? "bg-brand-600"
+                          : "bg-gray-200 dark:bg-gray-700"
+                      }`}
+                    >
+                      <span
+                        aria-hidden="true"
+                        class={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                          prioritizeModelMappings()
+                            ? "translate-x-5"
+                            : "translate-x-0"
+                        }`}
+                      />
+                    </button>
+                  </div>
+                </Show>
 
                 {/* Slot-based mappings */}
                 <div class="space-y-2">
@@ -1956,16 +2055,67 @@ export function SettingsPage() {
                     <option value="iflow">iFlow</option>
                     <option value="openai">OpenAI</option>
                   </select>
-                  <input
-                    type="text"
-                    value={newExcludedModel()}
-                    onInput={(e) => setNewExcludedModel(e.currentTarget.value)}
-                    placeholder="Model name (e.g., gemini-2.0-flash)"
-                    class="flex-[2] px-3 py-2 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-transparent"
-                    onKeyPress={(e) => {
-                      if (e.key === "Enter") handleAddExcludedModel();
-                    }}
-                  />
+                  {/* Model dropdown with mapped models from Amp CLI */}
+                  {(() => {
+                    const mappings = config().ampModelMappings || [];
+                    const mappedModels = mappings
+                      .filter((m) => m.enabled !== false && m.to)
+                      .map((m) => m.to);
+                    const { builtInModels } = getAvailableTargetModels();
+
+                    // Get models for selected provider
+                    const getModelsForProvider = () => {
+                      const provider = newExcludedProvider();
+                      switch (provider) {
+                        case "gemini":
+                          return builtInModels.google;
+                        case "claude":
+                          return builtInModels.anthropic;
+                        case "openai":
+                          return builtInModels.openai;
+                        case "qwen":
+                          return builtInModels.qwen;
+                        default:
+                          return [];
+                      }
+                    };
+
+                    return (
+                      <select
+                        value={newExcludedModel()}
+                        onChange={(e) =>
+                          setNewExcludedModel(e.currentTarget.value)
+                        }
+                        class="flex-[2] px-3 py-2 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-transparent"
+                      >
+                        <option value="">Select model...</option>
+                        {/* Amp Model Mappings (target models) */}
+                        <Show when={mappedModels.length > 0}>
+                          <optgroup label="Amp Model Mappings">
+                            <For each={[...new Set(mappedModels)]}>
+                              {(model) => (
+                                <option value={model}>{model}</option>
+                              )}
+                            </For>
+                          </optgroup>
+                        </Show>
+                        {/* Provider-specific models */}
+                        <Show when={getModelsForProvider().length > 0}>
+                          <optgroup
+                            label={`${newExcludedProvider() || "Provider"} Models`}
+                          >
+                            <For each={getModelsForProvider()}>
+                              {(model) => (
+                                <option value={model.value}>
+                                  {model.label}
+                                </option>
+                              )}
+                            </For>
+                          </optgroup>
+                        </Show>
+                      </select>
+                    );
+                  })()}
                   <Button
                     variant="primary"
                     size="sm"

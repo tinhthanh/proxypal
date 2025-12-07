@@ -4537,6 +4537,52 @@ async fn set_websocket_auth(state: State<'_, AppState>, value: bool) -> Result<(
     Ok(())
 }
 
+// Get prioritize model mappings from Management API
+#[tauri::command]
+async fn get_prioritize_model_mappings(state: State<'_, AppState>) -> Result<bool, String> {
+    let port = state.config.lock().unwrap().port;
+    let url = get_management_url(port, "prioritize-model-mappings");
+    
+    let client = build_management_client();
+    let response = client
+        .get(&url)
+        .header("X-Management-Key", "proxypal-mgmt-key")
+        .send()
+        .await
+        .map_err(|e| format!("Failed to get prioritize model mappings: {}", e))?;
+    
+    if !response.status().is_success() {
+        return Ok(false); // Default to false
+    }
+    
+    let json: serde_json::Value = response.json().await.map_err(|e| e.to_string())?;
+    Ok(json.get("prioritize-model-mappings").and_then(|v| v.as_bool()).unwrap_or(false))
+}
+
+// Set prioritize model mappings via Management API
+#[tauri::command]
+async fn set_prioritize_model_mappings(state: State<'_, AppState>, value: bool) -> Result<(), String> {
+    let port = state.config.lock().unwrap().port;
+    let url = get_management_url(port, "prioritize-model-mappings");
+    
+    let client = build_management_client();
+    let response = client
+        .put(&url)
+        .header("X-Management-Key", "proxypal-mgmt-key")
+        .json(&serde_json::json!({ "value": value }))
+        .send()
+        .await
+        .map_err(|e| format!("Failed to set prioritize model mappings: {}", e))?;
+    
+    if !response.status().is_success() {
+        let status = response.status();
+        let text = response.text().await.unwrap_or_default();
+        return Err(format!("Failed to set prioritize model mappings: {} - {}", status, text));
+    }
+    
+    Ok(())
+}
+
 // Get OAuth excluded models from Management API
 #[tauri::command]
 async fn get_oauth_excluded_models(state: State<'_, AppState>) -> Result<std::collections::HashMap<String, Vec<String>>, String> {
@@ -5147,6 +5193,8 @@ pub fn run() {
             set_max_retry_interval,
             get_websocket_auth,
             set_websocket_auth,
+            get_prioritize_model_mappings,
+            set_prioritize_model_mappings,
             get_oauth_excluded_models,
             set_oauth_excluded_models,
             delete_oauth_excluded_models,
