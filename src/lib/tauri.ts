@@ -283,6 +283,8 @@ export interface AppConfig {
 	routingStrategy: string; // "round-robin", "fill-first", "sequential"
 	copilot: CopilotConfig;
 	forceModelMappings: boolean; // Force model mappings to take precedence over local API keys
+	proxyApiKey?: string; // API key for client authentication
+	managementKey?: string; // Management API key for internal proxy calls
 }
 
 export async function getConfig(): Promise<AppConfig> {

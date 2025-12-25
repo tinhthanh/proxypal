@@ -29,6 +29,11 @@ use tauri::{
 };
 use tauri_plugin_opener::OpenerExt;
 use tauri_plugin_shell::ShellExt;
+
+/// Get management key from config (used for internal proxy API calls)
+fn get_management_key() -> String {
+    load_config().management_key
+}
 use regex::Regex;
 use std::io::{BufRead, BufReader, Seek, SeekFrom};
 
@@ -922,7 +927,7 @@ quota-exceeded:
 # Enable Management API for OAuth flows
 remote-management:
   allow-remote: true
-  secret-key: "proxypal-mgmt-key"
+  secret-key: "{}"
   disable-control-panel: true
 
 {}{}{}{}{}# Amp CLI Integration - enables amp login and management routes
@@ -944,6 +949,7 @@ ampcode:
         proxy_url_line,
         config.quota_switch_project,
         config.quota_switch_preview_model,
+        config.management_key,
         openai_compat_section,
         claude_api_key_section,
         gemini_api_key_section,
@@ -1011,7 +1017,7 @@ ampcode:
     let client = reqwest::Client::new();
     let _ = client
         .put(&enable_url)
-        .header("X-Management-Key", "proxypal-mgmt-key")
+        .header("X-Management-Key", &get_management_key())
         .json(&serde_json::json!({"value": config.usage_stats_enabled}))
         .send()
         .await;
@@ -1020,7 +1026,7 @@ ampcode:
     let force_mappings_url = format!("http://127.0.0.1:{}/v0/management/ampcode/force-model-mappings", port);
     let _ = client
         .put(&force_mappings_url)
-        .header("X-Management-Key", "proxypal-mgmt-key")
+        .header("X-Management-Key", &get_management_key())
         .json(&serde_json::json!({"value": config.force_model_mappings}))
         .send()
         .await;
@@ -1029,7 +1035,7 @@ ampcode:
     let max_retry_url = format!("http://127.0.0.1:{}/v0/management/max-retry-interval", port);
     let _ = client
         .put(&max_retry_url)
-        .header("X-Management-Key", "proxypal-mgmt-key")
+        .header("X-Management-Key", &get_management_key())
         .json(&serde_json::json!({"value": config.max_retry_interval}))
         .send()
         .await;
@@ -1057,7 +1063,7 @@ ampcode:
         let usage_url = format!("http://127.0.0.1:{}/v0/management/usage", port);
         let _ = client
             .get(&usage_url)
-            .header("X-Management-Key", "proxypal-mgmt-key")
+            .header("X-Management-Key", &get_management_key())
             .timeout(std::time::Duration::from_secs(5))
             .send()
             .await;
@@ -1241,19 +1247,19 @@ async fn start_copilot(
             copilot_bin,
             detection.version.as_ref().map(|v| format!(" v{}", v)).unwrap_or_default());
         (copilot_bin, vec![])
+    } else if let Some(npx_bin) = detection.npx_bin.clone() {
+        // Prefer npx over bunx for downloading packages (more reliable)
+        println!("[copilot] Using npx: {} copilot-api@latest", npx_bin);
+        (npx_bin, vec!["copilot-api@latest".to_string()])
     } else if let Some(bunx_bin) = detection.bunx_bin.clone() {
-        // Prefer bunx over npx (faster startup)
+        // Fallback to bunx
         println!("[copilot] Using bunx: {} copilot-api@latest", bunx_bin);
         (bunx_bin, vec!["copilot-api@latest".to_string()])
     } else {
-        // Fallback to npx
-        let npx_bin = detection.npx_bin.clone()
-            .ok_or_else(|| format!(
-                "Neither bunx nor npx found (required to run copilot-api).\n\n\
-                Install bun (https://bun.sh) or Node.js (https://nodejs.org/) and restart ProxyPal."
-            ))?;
-        println!("[copilot] Using npx: {} copilot-api@latest", npx_bin);
-        (npx_bin, vec!["copilot-api@latest".to_string()])
+        return Err(
+            "Neither npx nor bunx found (required to run copilot-api).\n\n\
+            Install Node.js (https://nodejs.org/) or bun (https://bun.sh) and restart ProxyPal.".to_string()
+        );
     };
     
     // Add common arguments
@@ -2045,7 +2051,7 @@ fn fetch_live_usage_stats_blocking(port: u16) -> Option<LiveUsageData> {
     let client = reqwest::blocking::Client::new();
     
     let response = client.get(&url)
-        .header("X-Management-Key", "proxypal-mgmt-key")
+        .header("X-Management-Key", &get_management_key())
         .timeout(std::time::Duration::from_secs(2))
         .send()
         .ok()?;
@@ -2391,7 +2397,7 @@ async fn sync_usage_from_proxy(state: State<'_, AppState>) -> Result<RequestHist
     
     let response = client
         .get(&usage_url)
-        .header("X-Management-Key", "proxypal-mgmt-key")
+        .header("X-Management-Key", &get_management_key())
         .timeout(std::time::Duration::from_secs(5))
         .send()
         .await
@@ -2539,7 +2545,7 @@ async fn open_oauth(app: tauri::AppHandle, state: State<'_, AppState>, provider:
     let client = reqwest::Client::new();
     let response = client
         .get(&endpoint)
-        .header("X-Management-Key", "proxypal-mgmt-key")
+        .header("X-Management-Key", &get_management_key())
         .send()
         .await
         .map_err(|e| format!("Failed to get OAuth URL: {}. Is the proxy running?", e))?;
@@ -2597,7 +2603,7 @@ async fn poll_oauth_status(state: State<'_, AppState>, oauth_state: String) -> R
     let client = reqwest::Client::new();
     let response = client
         .get(&endpoint)
-        .header("X-Management-Key", "proxypal-mgmt-key")
+        .header("X-Management-Key", &get_management_key())
         .send()
         .await
         .map_err(|e| format!("Failed to poll OAuth status: {}", e))?;
@@ -4628,7 +4634,7 @@ async fn get_gemini_api_keys(state: State<'_, AppState>) -> Result<Vec<GeminiApi
     let client = build_management_client();
     let response = client
         .get(&url)
-        .header("X-Management-Key", "proxypal-mgmt-key")
+        .header("X-Management-Key", &get_management_key())
         .send()
         .await
         .map_err(|e| format!("Failed to fetch Gemini API keys: {}", e))?;
@@ -4651,7 +4657,7 @@ async fn set_gemini_api_keys(state: State<'_, AppState>, keys: Vec<GeminiApiKey>
     
     let response = client
         .put(&url)
-        .header("X-Management-Key", "proxypal-mgmt-key")
+        .header("X-Management-Key", &get_management_key())
         .json(&body)
         .send()
         .await
@@ -4699,7 +4705,7 @@ async fn get_claude_api_keys(state: State<'_, AppState>) -> Result<Vec<ClaudeApi
     let client = build_management_client();
     let response = client
         .get(&url)
-        .header("X-Management-Key", "proxypal-mgmt-key")
+        .header("X-Management-Key", &get_management_key())
         .send()
         .await
         .map_err(|e| format!("Failed to fetch Claude API keys: {}", e))?;
@@ -4722,7 +4728,7 @@ async fn set_claude_api_keys(state: State<'_, AppState>, keys: Vec<ClaudeApiKey>
     
     let response = client
         .put(&url)
-        .header("X-Management-Key", "proxypal-mgmt-key")
+        .header("X-Management-Key", &get_management_key())
         .json(&body)
         .send()
         .await
@@ -4770,7 +4776,7 @@ async fn get_codex_api_keys(state: State<'_, AppState>) -> Result<Vec<CodexApiKe
     let client = build_management_client();
     let response = client
         .get(&url)
-        .header("X-Management-Key", "proxypal-mgmt-key")
+        .header("X-Management-Key", &get_management_key())
         .send()
         .await
         .map_err(|e| format!("Failed to fetch Codex API keys: {}", e))?;
@@ -4793,7 +4799,7 @@ async fn set_codex_api_keys(state: State<'_, AppState>, keys: Vec<CodexApiKey>) 
     
     let response = client
         .put(&url)
-        .header("X-Management-Key", "proxypal-mgmt-key")
+        .header("X-Management-Key", &get_management_key())
         .json(&body)
         .send()
         .await
@@ -5106,7 +5112,7 @@ async fn get_openai_compatible_providers(state: State<'_, AppState>) -> Result<V
     let client = build_management_client();
     let response = client
         .get(&url)
-        .header("X-Management-Key", "proxypal-mgmt-key")
+        .header("X-Management-Key", &get_management_key())
         .send()
         .await
         .map_err(|e| format!("Failed to fetch OpenAI-compatible providers: {}", e))?;
@@ -5129,7 +5135,7 @@ async fn set_openai_compatible_providers(state: State<'_, AppState>, providers: 
     
     let response = client
         .put(&url)
-        .header("X-Management-Key", "proxypal-mgmt-key")
+        .header("X-Management-Key", &get_management_key())
         .json(&body)
         .send()
         .await
@@ -5174,7 +5180,7 @@ async fn get_auth_files(state: State<'_, AppState>) -> Result<Vec<AuthFile>, Str
     let client = build_management_client();
     let response = client
         .get(&url)
-        .header("X-Management-Key", "proxypal-mgmt-key")
+        .header("X-Management-Key", &get_management_key())
         .send()
         .await
         .map_err(|e| format!("Failed to fetch auth files: {}", e))?;
@@ -5241,7 +5247,7 @@ async fn upload_auth_file(state: State<'_, AppState>, file_path: String, provide
     
     let response = client
         .post(&url)
-        .header("X-Management-Key", "proxypal-mgmt-key")
+        .header("X-Management-Key", &get_management_key())
         .multipart(form)
         .send()
         .await
@@ -5265,7 +5271,7 @@ async fn delete_auth_file(state: State<'_, AppState>, file_id: String) -> Result
     let client = build_management_client();
     let response = client
         .delete(&url)
-        .header("X-Management-Key", "proxypal-mgmt-key")
+        .header("X-Management-Key", &get_management_key())
         .send()
         .await
         .map_err(|e| format!("Failed to delete auth file: {}", e))?;
@@ -5288,7 +5294,7 @@ async fn toggle_auth_file(state: State<'_, AppState>, file_id: String, disabled:
     let client = build_management_client();
     let response = client
         .put(&url)
-        .header("X-Management-Key", "proxypal-mgmt-key")
+        .header("X-Management-Key", &get_management_key())
         .json(&serde_json::json!({ "value": disabled }))
         .send()
         .await
@@ -5312,7 +5318,7 @@ async fn download_auth_file(state: State<'_, AppState>, _file_id: String, filena
     let client = build_management_client();
     let response = client
         .get(&url)
-        .header("X-Management-Key", "proxypal-mgmt-key")
+        .header("X-Management-Key", &get_management_key())
         .send()
         .await
         .map_err(|e| format!("Failed to download auth file: {}", e))?;
@@ -5345,7 +5351,7 @@ async fn delete_all_auth_files(state: State<'_, AppState>) -> Result<(), String>
     let client = build_management_client();
     let response = client
         .delete(&url)
-        .header("X-Management-Key", "proxypal-mgmt-key")
+        .header("X-Management-Key", &get_management_key())
         .send()
         .await
         .map_err(|e| format!("Failed to delete all auth files: {}", e))?;
@@ -5372,7 +5378,7 @@ async fn get_max_retry_interval(state: State<'_, AppState>) -> Result<i32, Strin
     let client = build_management_client();
     let response = client
         .get(&url)
-        .header("X-Management-Key", "proxypal-mgmt-key")
+        .header("X-Management-Key", &get_management_key())
         .send()
         .await
         .map_err(|e| format!("Failed to get max retry interval: {}", e))?;
@@ -5394,7 +5400,7 @@ async fn set_max_retry_interval(state: State<'_, AppState>, value: i32) -> Resul
     let client = build_management_client();
     let response = client
         .put(&url)
-        .header("X-Management-Key", "proxypal-mgmt-key")
+        .header("X-Management-Key", &get_management_key())
         .json(&serde_json::json!({ "value": value }))
         .send()
         .await
@@ -5423,7 +5429,7 @@ async fn get_websocket_auth(state: State<'_, AppState>) -> Result<bool, String> 
     let client = build_management_client();
     let response = client
         .get(&url)
-        .header("X-Management-Key", "proxypal-mgmt-key")
+        .header("X-Management-Key", &get_management_key())
         .send()
         .await
         .map_err(|e| format!("Failed to get WebSocket auth: {}", e))?;
@@ -5445,7 +5451,7 @@ async fn set_websocket_auth(state: State<'_, AppState>, value: bool) -> Result<(
     let client = build_management_client();
     let response = client
         .put(&url)
-        .header("X-Management-Key", "proxypal-mgmt-key")
+        .header("X-Management-Key", &get_management_key())
         .json(&serde_json::json!({ "value": value }))
         .send()
         .await
@@ -5469,7 +5475,7 @@ async fn get_force_model_mappings(state: State<'_, AppState>) -> Result<bool, St
     let client = build_management_client();
     let response = client
         .get(&url)
-        .header("X-Management-Key", "proxypal-mgmt-key")
+        .header("X-Management-Key", &get_management_key())
         .send()
         .await
         .map_err(|e| format!("Failed to get force model mappings: {}", e))?;
@@ -5491,7 +5497,7 @@ async fn set_force_model_mappings(state: State<'_, AppState>, value: bool) -> Re
     let client = build_management_client();
     let response = client
         .put(&url)
-        .header("X-Management-Key", "proxypal-mgmt-key")
+        .header("X-Management-Key", &get_management_key())
         .json(&serde_json::json!({ "value": value }))
         .send()
         .await
@@ -5535,7 +5541,7 @@ async fn get_logs(state: State<'_, AppState>, lines: Option<u32>) -> Result<Vec<
     let client = build_management_client();
     let response = client
         .get(&url)
-        .header("X-Management-Key", "proxypal-mgmt-key")
+        .header("X-Management-Key", &get_management_key())
         .send()
         .await
         .map_err(|e| format!("Failed to get logs: {}", e))?;
@@ -5665,7 +5671,7 @@ async fn clear_logs(state: State<'_, AppState>) -> Result<(), String> {
     let client = build_management_client();
     let response = client
         .delete(&url)
-        .header("X-Management-Key", "proxypal-mgmt-key")
+        .header("X-Management-Key", &get_management_key())
         .send()
         .await
         .map_err(|e| format!("Failed to clear logs: {}", e))?;

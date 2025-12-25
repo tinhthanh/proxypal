@@ -68,6 +68,12 @@ pub struct AppConfig {
     pub max_retry_interval: i32,
     #[serde(default = "default_proxy_api_key")]
     pub proxy_api_key: String,
+    #[serde(default = "default_management_key")]
+    pub management_key: String,
+}
+
+fn default_management_key() -> String {
+    "proxypal-mgmt-key".to_string()
 }
 
 fn default_proxy_api_key() -> String {
@@ -127,6 +133,7 @@ impl Default for AppConfig {
             close_to_tray: true,
             max_retry_interval: 0,
             proxy_api_key: "proxypal-local".to_string(),
+            management_key: "proxypal-mgmt-key".to_string(),
         }
     }
 }
