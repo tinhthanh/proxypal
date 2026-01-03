@@ -695,6 +695,9 @@ async fn start_proxy(
         let mut mappings = String::from("  model-mappings:");
         for mapping in &enabled_mappings {
             mappings.push_str(&format!("\n    - from: {}\n      to: {}", mapping.name, mapping.alias));
+            if mapping.fork {
+                mappings.push_str("\n      fork: true");
+            }
         }
         mappings
     };

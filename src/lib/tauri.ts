@@ -39,7 +39,9 @@ export interface OAuthUrlResponse {
 	state: string;
 }
 
-export async function getOAuthUrl(provider: Provider): Promise<OAuthUrlResponse> {
+export async function getOAuthUrl(
+	provider: Provider,
+): Promise<OAuthUrlResponse> {
 	return invoke("get_oauth_url", { provider });
 }
 
@@ -93,6 +95,7 @@ export interface AmpModelMapping {
 	name: string;
 	alias: string;
 	enabled?: boolean; // Whether this mapping is active
+	fork?: boolean; // Whether to fork requests (send to both original and alias)
 }
 
 // Predefined Amp model slots with friendly names
@@ -1255,11 +1258,11 @@ export interface SshConfig {
 export interface SshStatusUpdate {
 	id: string;
 	status:
-	| "connected"
-	| "disconnected"
-	| "error"
-	| "reconnecting"
-	| "connecting";
+		| "connected"
+		| "disconnected"
+		| "error"
+		| "reconnecting"
+		| "connecting";
 	message?: string;
 }
 

@@ -1,11 +1,14 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct AmpModelMapping {
     pub name: String,
     pub alias: String,
     #[serde(default = "default_enabled")]
     pub enabled: bool,
+    #[serde(default)]
+    pub fork: bool,
 }
 
 fn default_enabled() -> bool {

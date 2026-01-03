@@ -880,11 +880,16 @@ export function SettingsPage() {
 		slotId: string,
 		toModel: string,
 		enabled: boolean,
+		fork?: boolean,
 	) => {
 		const slot = AMP_MODEL_SLOTS.find((s) => s.id === slotId);
 		if (!slot) return;
 
 		const currentMappings = config().ampModelMappings || [];
+		// Get existing mapping to preserve fork setting if not explicitly provided
+		const existingMapping = currentMappings.find(
+			(m) => m.name === slot.fromModel,
+		);
 		// Remove existing mapping for this slot
 		const filteredMappings = currentMappings.filter(
 			(m) => m.name !== slot.fromModel,
@@ -895,7 +900,12 @@ export function SettingsPage() {
 		if (enabled && toModel) {
 			newMappings = [
 				...filteredMappings,
-				{ name: slot.fromModel, alias: toModel, enabled: true },
+				{
+					name: slot.fromModel,
+					alias: toModel,
+					enabled: true,
+					fork: fork ?? existingMapping?.fork ?? false,
+				},
 			];
 		} else {
 			newMappings = filteredMappings;
@@ -907,6 +917,12 @@ export function SettingsPage() {
 		setSaving(true);
 		try {
 			await saveConfig(newConfig);
+			// Restart proxy to regenerate config YAML with updated mappings
+			if (appStore.proxyStatus().running) {
+				await stopProxy();
+				await new Promise((resolve) => setTimeout(resolve, 300));
+				await startProxy();
+			}
 			toastStore.success("Model mapping updated");
 		} catch (error) {
 			console.error("Failed to save config:", error);
@@ -1026,10 +1042,13 @@ export function SettingsPage() {
 		fromModel: string,
 		newToModel: string,
 		enabled: boolean,
+		fork?: boolean,
 	) => {
 		const currentMappings = config().ampModelMappings || [];
 		const newMappings = currentMappings.map((m) =>
-			m.name === fromModel ? { ...m, to: newToModel, enabled } : m,
+			m.name === fromModel
+				? { ...m, alias: newToModel, enabled, fork: fork ?? m.fork ?? false }
+				: m,
 		);
 
 		const newConfig = { ...config(), ampModelMappings: newMappings };
@@ -1038,6 +1057,12 @@ export function SettingsPage() {
 		setSaving(true);
 		try {
 			await saveConfig(newConfig);
+			// Restart proxy to regenerate config YAML with updated mappings
+			if (appStore.proxyStatus().running) {
+				await stopProxy();
+				await new Promise((resolve) => setTimeout(resolve, 300));
+				await startProxy();
+			}
 			toastStore.success("Mapping updated");
 		} catch (error) {
 			console.error("Failed to save config:", error);
@@ -2226,6 +2251,31 @@ export function SettingsPage() {
 																	</select>
 																);
 															})()}
+
+															{/* Fork toggle */}
+															<Show when={isEnabled()}>
+																<button
+																	type="button"
+																	onClick={() => {
+																		const currentFork =
+																			mapping()?.fork ?? false;
+																		updateSlotMapping(
+																			slot.id,
+																			currentTarget(),
+																			true,
+																			!currentFork,
+																		);
+																	}}
+																	class={`shrink-0 px-2 py-1 text-xs rounded border transition-colors ${
+																		mapping()?.fork
+																			? "bg-amber-100 dark:bg-amber-900/30 border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-300"
+																			: "bg-gray-100 dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700"
+																	}`}
+																	title="Fork: Send request to both original and mapped model"
+																>
+																	Fork
+																</button>
+															</Show>
 														</div>
 													</div>
 												</div>
@@ -2370,6 +2420,29 @@ export function SettingsPage() {
 																	</optgroup>
 																</Show>
 															</select>
+
+															{/* Fork toggle */}
+															<Show when={mapping.enabled !== false}>
+																<button
+																	type="button"
+																	onClick={() => {
+																		updateCustomMapping(
+																			mapping.name,
+																			mapping.alias,
+																			mapping.enabled !== false,
+																			!mapping.fork,
+																		);
+																	}}
+																	class={`shrink-0 px-2 py-1 text-xs rounded border transition-colors ${
+																		mapping.fork
+																			? "bg-amber-100 dark:bg-amber-900/30 border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-300"
+																			: "bg-gray-100 dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700"
+																	}`}
+																	title="Fork: Send request to both original and mapped model"
+																>
+																	Fork
+																</button>
+															</Show>
 
 															{/* Delete button */}
 															<button
