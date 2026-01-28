@@ -33,6 +33,7 @@ export type Provider =
 	| "qwen"
 	| "iflow"
 	| "vertex"
+	| "kiro"
 	| "antigravity";
 
 export async function openOAuth(provider: Provider): Promise<string> {
@@ -84,6 +85,7 @@ export interface AuthStatus {
 	qwen: number;
 	iflow: number;
 	vertex: number;
+	kiro: number;
 	antigravity: number;
 }
 
@@ -1336,12 +1338,26 @@ export interface ClaudeQuotaResult {
 	error?: string;
 }
 
+export interface KiroQuotaResult {
+	accountEmail: string;
+	plan: string;
+	totalCredits: number;
+	usedCredits: number;
+	usedPercent: number;
+	fetchedAt: string;
+	error?: string;
+}
+
 export async function fetchCopilotQuota(): Promise<CopilotQuotaResult[]> {
 	return invoke("fetch_copilot_quota");
 }
 
 export async function fetchClaudeQuota(): Promise<ClaudeQuotaResult[]> {
 	return invoke("fetch_claude_quota");
+}
+
+export async function fetchKiroQuota(): Promise<KiroQuotaResult[]> {
+	return invoke("fetch_kiro_quota");
 }
 
 // ============================================

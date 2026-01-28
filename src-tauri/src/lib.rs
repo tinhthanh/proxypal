@@ -3296,6 +3296,8 @@ async fn refresh_auth_status(app: tauri::AppHandle, state: State<'_, AppState>) 
                     new_auth.iflow += 1;
                 } else if filename.starts_with("vertex-") {
                     new_auth.vertex += 1;
+                } else if filename.starts_with("kiro-") {
+                    new_auth.kiro += 1;
                 } else if filename.starts_with("antigravity-") {
                     new_auth.antigravity += 1;
                 }
@@ -3341,6 +3343,7 @@ async fn complete_oauth(
             "qwen" => auth.qwen += 1,
             "iflow" => auth.iflow += 1,
             "vertex" => auth.vertex += 1,
+            "kiro" => auth.kiro += 1,
             "antigravity" => auth.antigravity += 1,
             _ => return Err(format!("Unknown provider: {}", provider)),
         }
@@ -4047,8 +4050,21 @@ async fn fetch_copilot_quota_with_token(token: &str, login: &str) -> types::Copi
 
 // Fetch Claude/Anthropic quota for all authenticated accounts
 // Uses the Anthropic OAuth API: https://api.anthropic.com/api/oauth/usage
+    // For now, return a placeholder as Kiro API for credits is not public
+    // Users can see their credits on app.kiro.dev
+    Ok(vec![types::quota::KiroQuotaResult {
+        account_email: "Kiro Subscription".to_string(),
+        plan: "Manual check required".to_string(),
+        total_credits: 0.0,
+        used_credits: 0.0,
+        used_percent: 0.0,
+        fetched_at: chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string(),
+        error: Some("Kiro quota tracking coming soon. Check app.kiro.dev for credits.".to_string()),
+    }])
+}
+
 #[tauri::command]
-async fn fetch_claude_quota() -> Result<Vec<types::ClaudeQuotaResult>, String> {
+async fn fetch_claude_quota() -> Result<Vec<types::quota::ClaudeQuotaResult>, String> {
     let home = dirs::home_dir().ok_or("Could not determine home directory")?;
     
     let mut results: Vec<types::ClaudeQuotaResult> = Vec::new();

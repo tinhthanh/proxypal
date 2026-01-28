@@ -87,6 +87,7 @@ export function AuthFilesPage() {
 				else if (filename.includes("qwen")) provider = "qwen";
 				else if (filename.includes("iflow")) provider = "iflow";
 				else if (filename.includes("vertex")) provider = "vertex";
+				else if (filename.includes("kiro")) provider = "kiro";
 				else if (filename.includes("antigravity")) provider = "antigravity";
 
 				await uploadAuthFile(selected, provider);

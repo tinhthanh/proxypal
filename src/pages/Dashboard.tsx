@@ -32,9 +32,11 @@ import {
 	fetchClaudeQuota,
 	fetchCodexQuota,
 	fetchCopilotQuota,
+	fetchKiroQuota,
 	getOAuthUrl,
 	getUsageStats,
 	importVertexCredential,
+	type KiroQuotaResult,
 	type OAuthUrlResponse,
 	onRequestLog,
 	openUrlInBrowser,
@@ -69,6 +71,11 @@ const providers = [
 		name: "Antigravity",
 		provider: "antigravity" as Provider,
 		logo: "/logos/antigravity.webp",
+	},
+	{
+		name: "Kiro",
+		provider: "kiro" as Provider,
+		logo: "/logos/kiro.png",
 	},
 ];
 
@@ -996,6 +1003,9 @@ export function DashboardPage() {
 
 					{/* === ZONE 3.5c: Claude Quota === */}
 					<ClaudeQuotaWidget />
+
+					{/* === ZONE 3.5e: Kiro Quota === */}
+					<KiroQuotaWidget />
 
 					{/* === ZONE 3.5d: GitHub Copilot Quota === */}
 					<CopilotQuotaWidget />
@@ -2560,5 +2570,126 @@ function CodexQuotaWidget(props: { authStatus: { openai: number } }) {
 				</div>
 			</Show>
 		</div>
+	);
+}
+
+// Kiro Quota Widget - shows agentic AI credits for Kiro accounts
+function KiroQuotaWidget() {
+	const [quotaData, setQuotaData] = createSignal<KiroQuotaResult[]>([]);
+	const [loading, setLoading] = createSignal(false);
+	const [error, setError] = createSignal<string | null>(null);
+
+	const loadQuota = async () => {
+		setLoading(true);
+		setError(null);
+		try {
+			const results = await fetchKiroQuota();
+			setQuotaData(results);
+		} catch (err) {
+			console.error("Failed to fetch Kiro quota:", err);
+			setError(String(err));
+		} finally {
+			setLoading(false);
+		}
+	};
+
+	onMount(() => {
+		loadQuota();
+	});
+
+	return (
+		<Show when={quotaData().length > 0}>
+			<div class="p-4 sm:p-6 rounded-2xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-sm transition-smooth hover:shadow-md">
+				<div class="flex items-center justify-between mb-4">
+					<div class="flex items-center gap-3">
+						<div class="w-10 h-10 rounded-xl bg-orange-50 dark:bg-orange-900/20 flex items-center justify-center">
+							<img src="/logos/kiro.png" class="w-6 h-6" alt="Kiro" />
+						</div>
+						<div>
+							<h3 class="text-base font-bold text-gray-900 dark:text-gray-100">
+								Kiro Quota
+							</h3>
+							<p class="text-xs text-gray-500 dark:text-gray-400">
+								Agentic AI credits
+							</p>
+						</div>
+					</div>
+					<button
+						onClick={loadQuota}
+						disabled={loading()}
+						class="p-2 text-gray-400 hover:text-brand-600 dark:hover:text-brand-400 transition-colors rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
+					>
+						<svg
+							class={`w-4 h-4 ${loading() ? "animate-spin" : ""}`}
+							fill="none"
+							viewBox="0 0 24 24"
+							stroke="currentColor"
+						>
+							<path
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								stroke-width="2"
+								d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+							/>
+						</svg>
+					</button>
+				</div>
+
+				<div class="space-y-4">
+					<For each={quotaData()}>
+						{(quota) => (
+							<div class="p-4 rounded-xl bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700/50">
+								<div class="flex items-center justify-between mb-2">
+									<div class="flex items-center gap-2">
+										<span class="text-xs font-medium text-gray-900 dark:text-gray-100">
+											{quota.accountEmail}
+										</span>
+										<span class="px-1.5 py-0.5 rounded-md bg-brand-100 dark:bg-brand-900/30 text-brand-700 dark:text-brand-400 text-[10px] font-bold uppercase tracking-wider">
+											{quota.plan}
+										</span>
+									</div>
+									<Show when={quota.totalCredits > 0}>
+										<span class="text-xs font-bold text-gray-900 dark:text-gray-100">
+											{quota.usedCredits} / {quota.totalCredits} credits
+										</span>
+									</Show>
+								</div>
+
+								<Show
+									when={quota.totalCredits > 0}
+									fallback={
+										<div class="flex items-center gap-2 text-xs text-amber-600 dark:text-amber-400">
+											<svg
+												class="w-4 h-4"
+												fill="none"
+												viewBox="0 0 24 24"
+												stroke="currentColor"
+											>
+												<path
+													stroke-linecap="round"
+													stroke-linejoin="round"
+													stroke-width="2"
+													d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+												/>
+											</svg>
+											<span>
+												{quota.error || "Manual check required on app.kiro.dev"}
+											</span>
+										</div>
+									}
+								>
+									<div class="w-full h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+										<div
+											class={`h-full bg-brand-500 transition-all duration-300`}
+											style={{ width: `${quota.usedPercent}%` }}
+										/>
+									</div>
+								</Show>
+							</div>
+						)}
+					</For>
+				</div>
+			</div>
+		</Show>
 	);
 }

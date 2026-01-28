@@ -89,10 +89,23 @@ pub struct ClaudeQuotaResult {
     pub five_hour_reset_at: Option<i64>,
     /// 7-day weekly limit - percent used
     pub seven_day_percent: f64,
-    pub seven_day_reset_at: Option<i64>,
-    /// Extra usage (spend tracking for paid plans)
-    pub extra_usage_spend: Option<f64>,
-    pub extra_usage_limit: Option<f64>,
+    pub fetched_at: String,
+    pub error: Option<String>,
+}
+
+/// Kiro Usage API Types (from kiro.dev/api/usage)
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct KiroQuotaResult {
+    pub account_email: String,
+    /// Plan type: "free", "pro", "pro+", "power"
+    pub plan: String,
+    /// Total credits in the pool
+    pub total_credits: f64,
+    /// Credits used so far
+    pub used_credits: f64,
+    /// Percent of credits used
+    pub used_percent: f64,
     pub fetched_at: String,
     pub error: Option<String>,
 }

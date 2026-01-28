@@ -8,6 +8,7 @@ pub struct AuthStatus {
     pub qwen: u32,
     pub iflow: u32,
     pub vertex: u32,
+    pub kiro: u32,
     pub antigravity: u32,
 }
 
@@ -20,6 +21,7 @@ impl Default for AuthStatus {
             qwen: 0,
             iflow: 0,
             vertex: 0,
+            kiro: 0,
             antigravity: 0,
         }
     }
@@ -56,6 +58,8 @@ pub struct ProxyAuthProviders {
     pub vertex: Option<ProxyAuthProviderStatus>,
     #[serde(default)]
     pub antigravity: Option<ProxyAuthProviderStatus>,
+    #[serde(default)]
+    pub kiro: Option<ProxyAuthProviderStatus>,
     #[serde(default)]
     pub copilot: Option<ProxyAuthProviderStatus>,
 }
