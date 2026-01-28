@@ -479,6 +479,7 @@ export interface ProviderHealth {
 	qwen: HealthStatus;
 	iflow: HealthStatus;
 	vertex: HealthStatus;
+	kiro: HealthStatus;
 	antigravity: HealthStatus;
 }
 

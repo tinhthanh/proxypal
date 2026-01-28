@@ -2577,17 +2577,14 @@ function CodexQuotaWidget(props: { authStatus: { openai: number } }) {
 function KiroQuotaWidget() {
 	const [quotaData, setQuotaData] = createSignal<KiroQuotaResult[]>([]);
 	const [loading, setLoading] = createSignal(false);
-	const [error, setError] = createSignal<string | null>(null);
 
 	const loadQuota = async () => {
 		setLoading(true);
-		setError(null);
 		try {
 			const results = await fetchKiroQuota();
 			setQuotaData(results);
 		} catch (err) {
 			console.error("Failed to fetch Kiro quota:", err);
-			setError(String(err));
 		} finally {
 			setLoading(false);
 		}

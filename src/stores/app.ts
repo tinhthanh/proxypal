@@ -41,6 +41,7 @@ function createAppStore() {
 		qwen: 0,
 		iflow: 0,
 		vertex: 0,
+		kiro: 0,
 		antigravity: 0,
 	});
 
