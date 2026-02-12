@@ -1,0 +1,102 @@
+# ==============================================
+# Promote Image Tag to Environment
+# ==============================================
+# Workflow dispatch: choose environment + tag
+# Updates image tag in vetgo-infra Helm values
+# ArgoCD auto-syncs the change
+#
+# Prerequisites:
+# - INFRA_DEPLOY_KEY: SSH key with write access to vetgo-infra
+# - HARBOR_USERNAME / HARBOR_PASSWORD: Harbor auth
+# ==============================================
+
+name: 🚀 Promote to Environment
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        type: choice
+        options:
+          - uat
+          - prod
+      tag:
+        description: 'Image tag to deploy (e.g., 0.3.110)'
+        required: true
+
+env:
+  REGISTRY: harbor.vetgo.tech
+  APP_NAME: proxypal
+  IMAGE_NAME: proxypal/web
+
+jobs:
+  promote:
+    name: Promote ${{ inputs.tag }} → ${{ inputs.environment }}
+    runs-on: arc-runners
+    environment: ${{ inputs.environment }}
+
+    steps:
+      - name: Verify image exists in Harbor
+        env:
+          HARBOR_USER: ${{ secrets.HARBOR_USERNAME }}
+          HARBOR_PASS: ${{ secrets.HARBOR_PASSWORD }}
+        run: |
+          echo "🔍 Verifying harbor.vetgo.tech/${{ env.IMAGE_NAME }}:${{ inputs.tag }}..."
+          HTTP_CODE=$(curl -sk -o /dev/null -w "%{http_code}" \
+            -u "${HARBOR_USER}:${HARBOR_PASS}" \
+            "https://${{ env.REGISTRY }}/api/v2.0/projects/${{ env.APP_NAME }}/repositories/web/artifacts?q=tags%3D${{ inputs.tag }}")
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "❌ Failed to verify image (HTTP $HTTP_CODE)"
+            exit 1
+          fi
+          echo "✅ Image verified"
+
+      - name: Checkout infra repo
+        uses: actions/checkout@v4
+        with:
+          repository: tinhthanh/vetgo-infra
+          ssh-key: ${{ secrets.INFRA_DEPLOY_KEY }}
+          ref: main
+
+      - name: Update image tag
+        run: |
+          VALUES_FILE="charts/${{ env.APP_NAME }}/values-${{ inputs.environment }}.yaml"
+
+          echo "📝 Updating $VALUES_FILE → tag: ${{ inputs.tag }}"
+
+          # Update tag line
+          sed -i "s/tag: \".*\"/tag: \"${{ inputs.tag }}\"/" "$VALUES_FILE"
+
+          echo ""
+          echo "📄 Updated file:"
+          cat "$VALUES_FILE"
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git add .
+          git diff --cached --stat
+
+          git commit -m "deploy(${{ inputs.environment }}): ${{ env.APP_NAME }} → ${{ inputs.tag }}
+
+          Triggered by: ${{ github.actor }}
+          Workflow: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
+          git push origin main
+
+      - name: Summary
+        run: |
+          echo "### 🚀 Deployment Promoted" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Field | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| **App** | \`${{ env.APP_NAME }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Image** | \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ inputs.tag }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Environment** | \`${{ inputs.environment }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Triggered by** | \`${{ github.actor }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "> ArgoCD will auto-sync within ~3 minutes" >> $GITHUB_STEP_SUMMARY
