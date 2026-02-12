@@ -3,8 +3,8 @@
 # ==============================================
 FROM node:22-alpine AS builder
 
-# Install pnpm
-RUN corepack enable && corepack prepare pnpm@9 --activate
+# Install pnpm (npm install instead of corepack — avoids DNS issues in DinD)
+RUN npm install -g pnpm@9
 
 WORKDIR /app
 
