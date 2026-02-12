@@ -6,6 +6,10 @@
 # - Manual dispatch with custom tag
 #
 # Pushes to: harbor.vetgo.tech/proxypal/web:<tag>
+#
+# Uses self-hosted runner on K3s cluster:
+# - No GitHub secrets needed (Harbor creds pre-configured)
+# - Fast push (runner is on same cluster as Harbor)
 # ==============================================
 
 name: Docker Publish
@@ -28,23 +32,13 @@ env:
 jobs:
   docker:
     name: Build & Push Docker Image
-    runs-on: ubuntu-latest
+    runs-on: arc-runners  # Self-hosted runner on K3s (pre-configured Harbor login)
     permissions:
       contents: read
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Login to Harbor
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ secrets.HARBOR_USERNAME }}
-          password: ${{ secrets.HARBOR_PASSWORD }}
 
       - name: Extract version from tag
         id: meta
@@ -62,18 +56,22 @@ jobs:
             echo "tags=${REGISTRY}/${IMAGE_NAME}:${VERSION}" >> $GITHUB_OUTPUT
           fi
 
-      - name: Build and push
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-          labels: |
-            org.opencontainers.image.title=ProxyPal Web
-            org.opencontainers.image.version=${{ steps.meta.outputs.version }}
-            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+      - name: Build Docker image
+        run: |
+          IFS=',' read -ra TAGS <<< "${{ steps.meta.outputs.tags }}"
+          TAG_ARGS=""
+          for tag in "${TAGS[@]}"; do
+            TAG_ARGS="$TAG_ARGS -t $tag"
+          done
+          docker build $TAG_ARGS .
+
+      - name: Push to Harbor
+        run: |
+          IFS=',' read -ra TAGS <<< "${{ steps.meta.outputs.tags }}"
+          for tag in "${TAGS[@]}"; do
+            echo "Pushing $tag..."
+            docker push "$tag"
+          done
 
       - name: Summary
         run: |
@@ -85,3 +83,4 @@ jobs:
           echo "| **Image** | \`${{ env.IMAGE_NAME }}\` |" >> $GITHUB_STEP_SUMMARY
           echo "| **Tags** | \`${{ steps.meta.outputs.tags }}\` |" >> $GITHUB_STEP_SUMMARY
           echo "| **Commit** | \`${GITHUB_SHA::7}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Runner** | Self-hosted (K3s) |" >> $GITHUB_STEP_SUMMARY
